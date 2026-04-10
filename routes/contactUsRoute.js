@@ -1,42 +1,16 @@
 const express = require("express");
 const authService = require("../services/AuthService");
-
 const {
-  createCompany,
-  deleteCompany,
-  getCompanies,
-  getPublicCompanies,
-  getOneCompany,
-  resizeCompaniesImages,
-  uploadCompaniesImages,
-  updateCompany,
-} = require("../services/companiesService");
+  getContact,
+  updateContact,
+} = require("../services/contactUsService");
 
-const companiesRouter = express.Router();
+const contactUsRouter = express.Router();
 
-// Public
-companiesRouter.get("/public", getPublicCompanies);
-
-// Admin / general
-companiesRouter
+contactUsRouter.get("/public", getContact);
+contactUsRouter
   .route("/")
-  .get(getCompanies)
-  .post(
-    authService.protect,
-    uploadCompaniesImages,
-    resizeCompaniesImages,
-    createCompany,
-  );
+  .get(getContact)
+  .put(authService.protect, updateContact);
 
-companiesRouter
-  .route("/:id")
-  .get(getOneCompany)
-  .put(
-    authService.protect,
-    uploadCompaniesImages,
-    resizeCompaniesImages,
-    updateCompany,
-  )
-  .delete(authService.protect, deleteCompany);
-
-module.exports = companiesRouter;
+module.exports = contactUsRouter;

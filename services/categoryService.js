@@ -1,23 +1,8 @@
 const asyncHandler = require("express-async-handler");
 const ApiError = require("../utils/apiError");
 const categoryModel = require("../models/categoryModel");
-const { default: slugify } = require("slugify");
-
-const safeParseJSON = (value, fieldName) => {
-  if (value === undefined || value === null) return value;
-  if (typeof value !== "string") return value;
-
-  try {
-    return JSON.parse(value);
-  } catch (error) {
-    throw new ApiError(`Invalid JSON format for ${fieldName}`, 400);
-  }
-};
-
-const buildSlug = (name = {}) => {
-  const base = name?.en || name?.ar || name?.tr || "";
-  return slugify(base, { lower: true, strict: true, trim: true });
-};
+const buildSlug = require("../utils/buildSlug");
+const safeParseJSON = require("../utils/safeParseJson");
 
 // Admin list
 exports.getCategories = asyncHandler(async (req, res) => {

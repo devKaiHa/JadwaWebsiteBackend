@@ -1,9 +1,0 @@
-TODO:
-Research
-Statistics
-Custom pages
-
-Improvements:
-CKEditor
-Search/filters
-Country select

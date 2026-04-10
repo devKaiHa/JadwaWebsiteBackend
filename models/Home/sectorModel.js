@@ -9,7 +9,6 @@ const sectorSchema = new mongoose.Schema(
     slug: { type: String, default: "" },
     order: { type: Number, default: 0 },
     description: { type: multilingualSchema },
-    image: { type: String, default: "" },
   },
   { timestamps: true },
 );

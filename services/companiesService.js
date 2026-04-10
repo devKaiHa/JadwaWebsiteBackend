@@ -4,17 +4,8 @@ const companiesModel = require("../models/Companies");
 const { uploadMixOfImages } = require("../middlewares/uploadingImage");
 const sharp = require("sharp");
 const { v4: uuidv4 } = require("uuid");
-
-const safeParseJSON = (value, fieldName) => {
-  if (value === undefined || value === null) return value;
-  if (typeof value !== "string") return value;
-
-  try {
-    return JSON.parse(value);
-  } catch (error) {
-    throw new ApiError(`Invalid JSON format for ${fieldName}`, 400);
-  }
-};
+const buildSlug = require("../utils/buildSlug");
+const safeParseJSON = require("../utils/safeParseJson");
 
 exports.uploadCompaniesImages = uploadMixOfImages([
   { name: "logo", maxCount: 1 },
@@ -24,7 +15,7 @@ exports.uploadCompaniesImages = uploadMixOfImages([
 exports.resizeCompaniesImages = asyncHandler(async (req, res, next) => {
   if (!req.files) return next();
 
-  if (req.files.logo && req.files.logo[0]) {
+  if (req.files.logo?.[0]) {
     const logoFilename = `company-logo-${uuidv4()}-${Date.now()}.webp`;
 
     await sharp(req.files.logo[0].buffer)
@@ -35,7 +26,7 @@ exports.resizeCompaniesImages = asyncHandler(async (req, res, next) => {
     req.body.logo = logoFilename;
   }
 
-  if (req.files.background && req.files.background[0]) {
+  if (req.files.background?.[0]) {
     const backgroundFilename = `company-background-${uuidv4()}-${Date.now()}.webp`;
 
     await sharp(req.files.background[0].buffer)
@@ -49,23 +40,57 @@ exports.resizeCompaniesImages = asyncHandler(async (req, res, next) => {
   next();
 });
 
-exports.createCompany = asyncHandler(async (req, res, next) => {
-  req.body.name = safeParseJSON(req.body.name, "name");
-  req.body.about = safeParseJSON(req.body.about, "about");
-  req.body.experienceField = safeParseJSON(
-    req.body.experienceField,
-    "experienceField",
-  );
-  req.body.content = safeParseJSON(req.body.content, "content");
-  req.body.social_links = safeParseJSON(req.body.social_links, "social_links");
-
-  if (req.body.isActive !== undefined) {
-    req.body.isActive =
-      req.body.isActive === true || req.body.isActive === "true";
+const parseCompanyBody = (body) => {
+  if (body.name !== undefined) body.name = safeParseJSON(body.name, "name");
+  if (body.about !== undefined) body.about = safeParseJSON(body.about, "about");
+  if (body.experienceField !== undefined) {
+    body.experienceField = safeParseJSON(
+      body.experienceField,
+      "experienceField",
+    );
+  }
+  if (body.content !== undefined) {
+    body.content = safeParseJSON(body.content, "content");
+  }
+  if (body.social_links !== undefined) {
+    body.social_links = safeParseJSON(body.social_links, "social_links");
+  }
+  if (body.services !== undefined) {
+    body.services = safeParseJSON(body.services, "services");
+  }
+  if (body.values !== undefined) {
+    body.values = safeParseJSON(body.values, "values");
+  }
+  if (body.addresses !== undefined) {
+    body.addresses = safeParseJSON(body.addresses, "addresses");
+  }
+  if (body.goals !== undefined) {
+    body.goals = safeParseJSON(body.goals, "goals");
+  }
+  if (body.statistics !== undefined) {
+    body.statistics = safeParseJSON(body.statistics, "statistics");
+  }
+  if (body.fundsAssociated !== undefined) {
+    body.fundsAssociated = safeParseJSON(
+      body.fundsAssociated,
+      "fundsAssociated",
+    );
   }
 
+  if (body.name) {
+    body.slug = buildSlug(body.name);
+  }
+
+  if (body.isActive !== undefined) {
+    body.isActive = body.isActive === true || body.isActive === "true";
+  }
+};
+
+exports.createCompany = asyncHandler(async (req, res, next) => {
+  parseCompanyBody(req.body);
+
   const existingCompany = await companiesModel.findOne({
-    "name.en": req.body.name?.en || "",
+    slug: req.body.slug,
   });
 
   if (existingCompany) {
@@ -101,7 +126,7 @@ exports.getCompanies = asyncHandler(async (req, res) => {
     query.country = { $regex: country.trim(), $options: "i" };
   }
 
-  if (keyword && keyword.trim() !== "") {
+  if (keyword?.trim()) {
     const safeKeyword = keyword.trim();
 
     query.$or = [
@@ -111,9 +136,6 @@ exports.getCompanies = asyncHandler(async (req, res) => {
       { "about.en": { $regex: safeKeyword, $options: "i" } },
       { "about.ar": { $regex: safeKeyword, $options: "i" } },
       { "about.tr": { $regex: safeKeyword, $options: "i" } },
-      { "experienceField.en": { $regex: safeKeyword, $options: "i" } },
-      { "experienceField.ar": { $regex: safeKeyword, $options: "i" } },
-      { "experienceField.tr": { $regex: safeKeyword, $options: "i" } },
       { country: { $regex: safeKeyword, $options: "i" } },
     ];
   }
@@ -123,7 +145,12 @@ exports.getCompanies = asyncHandler(async (req, res) => {
   const skip = (pageNum - 1) * limitNum;
 
   const [companies, total] = await Promise.all([
-    companiesModel.find(query).sort(sort).skip(skip).limit(limitNum),
+    companiesModel
+      .find(query)
+      .populate("fundsAssociated", "title _id image slug")
+      .sort(sort)
+      .skip(skip)
+      .limit(limitNum),
     companiesModel.countDocuments(query),
   ]);
 
@@ -144,23 +171,80 @@ exports.getCompanies = asyncHandler(async (req, res) => {
 });
 
 exports.getPublicCompanies = asyncHandler(async (req, res) => {
-  const companies = await companiesModel
-    .find({ isActive: true })
+  const { keyword, country, fundId, page = 1, limit } = req.query;
+  const query = { isActive: true };
+
+  if (country?.trim()) {
+    query.country = { $regex: country.trim(), $options: "i" };
+  }
+
+  if (fundId?.trim()) {
+    query.fundsAssociated = fundId.trim();
+  }
+
+  if (keyword?.trim()) {
+    const safeKeyword = keyword.trim();
+    query.$or = [
+      { "name.en": { $regex: safeKeyword, $options: "i" } },
+      { "name.ar": { $regex: safeKeyword, $options: "i" } },
+      { "name.tr": { $regex: safeKeyword, $options: "i" } },
+      { "about.en": { $regex: safeKeyword, $options: "i" } },
+      { "about.ar": { $regex: safeKeyword, $options: "i" } },
+      { "about.tr": { $regex: safeKeyword, $options: "i" } },
+    ];
+  }
+
+  const pageNum = parseInt(page, 10);
+  const limitNum = limit ? parseInt(limit, 10) : null;
+  const skip = limitNum ? (pageNum - 1) * limitNum : 0;
+
+  let companiesQuery = companiesModel
+    .find(query)
+    .populate("fundsAssociated", "title _id image slug")
     .sort({ order: 1, createdAt: -1 });
+
+  if (limitNum) {
+    companiesQuery = companiesQuery.skip(skip).limit(limitNum);
+  }
+
+  const companies = await companiesQuery;
+  const response = { status: true, data: companies };
+
+  if (limitNum) {
+    const total = await companiesModel.countDocuments(query);
+    response.pagination = {
+      totalItems: total,
+      totalPages: Math.ceil(total / limitNum),
+      currentPage: pageNum,
+      itemsPerPage: limitNum,
+    };
+  }
+
+  res.status(200).json(response);
+});
+
+exports.getCompanyBySlug = asyncHandler(async (req, res, next) => {
+  const company = await companiesModel
+    .findOne({ slug: req.params.slug, isActive: true })
+    .populate("fundsAssociated", "title _id image slug");
+
+  if (!company) {
+    return next(new ApiError(`No company found for slug ${req.params.slug}`, 404));
+  }
 
   res.status(200).json({
     status: true,
-    data: companies,
+    data: company,
   });
 });
 
 exports.getOneCompany = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
-
-  const company = await companiesModel.findById(id);
+  const company = await companiesModel
+    .findById(req.params.id)
+    .populate("fundsAssociated", "title _id image slug");
 
   if (!company) {
-    return next(new ApiError(`No company found for this id ${id}`, 404));
+    return next(new ApiError(`No company found for this id ${req.params.id}`, 404));
   }
 
   res.status(200).json({
@@ -170,46 +254,16 @@ exports.getOneCompany = asyncHandler(async (req, res, next) => {
 });
 
 exports.updateCompany = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
+  parseCompanyBody(req.body);
 
-  if (req.body.name !== undefined) {
-    req.body.name = safeParseJSON(req.body.name, "name");
-  }
-
-  if (req.body.about !== undefined) {
-    req.body.about = safeParseJSON(req.body.about, "about");
-  }
-
-  if (req.body.experienceField !== undefined) {
-    req.body.experienceField = safeParseJSON(
-      req.body.experienceField,
-      "experienceField",
-    );
-  }
-
-  if (req.body.content !== undefined) {
-    req.body.content = safeParseJSON(req.body.content, "content");
-  }
-
-  if (req.body.social_links !== undefined) {
-    req.body.social_links = safeParseJSON(
-      req.body.social_links,
-      "social_links",
-    );
-  }
-
-  if (req.body.isActive !== undefined) {
-    req.body.isActive =
-      req.body.isActive === true || req.body.isActive === "true";
-  }
-
-  const updatedCompany = await companiesModel.findByIdAndUpdate(id, req.body, {
-    new: true,
-    runValidators: true,
-  });
+  const updatedCompany = await companiesModel.findByIdAndUpdate(
+    req.params.id,
+    req.body,
+    { new: true, runValidators: true },
+  );
 
   if (!updatedCompany) {
-    return next(new ApiError(`No company found for this id ${id}`, 404));
+    return next(new ApiError(`No company found for this id ${req.params.id}`, 404));
   }
 
   res.status(200).json({
@@ -220,12 +274,10 @@ exports.updateCompany = asyncHandler(async (req, res, next) => {
 });
 
 exports.deleteCompany = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
-
-  const deletedCompany = await companiesModel.findByIdAndDelete(id);
+  const deletedCompany = await companiesModel.findByIdAndDelete(req.params.id);
 
   if (!deletedCompany) {
-    return next(new ApiError(`No company found for this id ${id}`, 404));
+    return next(new ApiError(`No company found for this id ${req.params.id}`, 404));
   }
 
   res.status(200).json({

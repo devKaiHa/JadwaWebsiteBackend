@@ -3,7 +3,6 @@ const ApiError = require("../utils/apiError");
 const messagesModel = require("../models/MessagesModel");
 const sendEmail = require("../utils/sendEmail");
 
-// Admin list
 exports.getMessages = asyncHandler(async (req, res) => {
   const {
     keyword,
@@ -28,13 +27,15 @@ exports.getMessages = asyncHandler(async (req, res) => {
     query.status = status;
   }
 
-  if (keyword && keyword.trim() !== "") {
+  if (keyword?.trim()) {
     const safeKeyword = keyword.trim();
 
     query.$or = [
       { name: { $regex: safeKeyword, $options: "i" } },
       { email: { $regex: safeKeyword, $options: "i" } },
       { phone: { $regex: safeKeyword, $options: "i" } },
+      { subject: { $regex: safeKeyword, $options: "i" } },
+      { requestType: { $regex: safeKeyword, $options: "i" } },
       { message: { $regex: safeKeyword, $options: "i" } },
       { reply: { $regex: safeKeyword, $options: "i" } },
     ];
@@ -61,7 +62,6 @@ exports.getMessages = asyncHandler(async (req, res) => {
   });
 });
 
-// Public create
 exports.createMessage = asyncHandler(async (req, res) => {
   const createdMessage = await messagesModel.create(req.body);
 
@@ -74,6 +74,8 @@ exports.createMessage = asyncHandler(async (req, res) => {
       <p><strong>Name:</strong> ${createdMessage.name}</p>
       <p><strong>Email:</strong> ${createdMessage.email}</p>
       <p><strong>Phone:</strong> ${createdMessage.phone || "N/A"}</p>
+      <p><strong>Request Type:</strong> ${createdMessage.requestType}</p>
+      <p><strong>Subject:</strong> ${createdMessage.subject || "N/A"}</p>
       <p><strong>Message:</strong><br/>${createdMessage.message}</p>
     `,
   });
@@ -86,12 +88,10 @@ exports.createMessage = asyncHandler(async (req, res) => {
 });
 
 exports.getOneMessage = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
-
-  const message = await messagesModel.findById(id);
+  const message = await messagesModel.findById(req.params.id);
 
   if (!message) {
-    return next(new ApiError(`No message found for this id ${id}`, 404));
+    return next(new ApiError(`No message found for this id ${req.params.id}`, 404));
   }
 
   res.status(200).json({
@@ -101,20 +101,18 @@ exports.getOneMessage = asyncHandler(async (req, res, next) => {
 });
 
 exports.replyToMessage = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
   const { reply } = req.body;
 
   if (!reply || reply.trim() === "") {
     return next(new ApiError("Reply is required", 400));
   }
 
-  const message = await messagesModel.findById(id);
+  const message = await messagesModel.findById(req.params.id);
 
   if (!message) {
     return next(new ApiError("Message not found", 404));
   }
 
-  // Save reply in DB
   message.reply = reply.trim();
   message.isReplied = true;
   message.repliedAt = new Date();
@@ -122,7 +120,6 @@ exports.replyToMessage = asyncHandler(async (req, res, next) => {
 
   await message.save();
 
-  // Optional: send reply email to user
   await sendEmail({
     to: message.email,
     subject: "Reply to your message",
@@ -140,12 +137,10 @@ exports.replyToMessage = asyncHandler(async (req, res, next) => {
 });
 
 exports.deleteMessage = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
-
-  const message = await messagesModel.findByIdAndDelete(id);
+  const message = await messagesModel.findByIdAndDelete(req.params.id);
 
   if (!message) {
-    return next(new ApiError(`No message found for this id ${id}`, 404));
+    return next(new ApiError(`No message found for this id ${req.params.id}`, 404));
   }
 
   res.status(200).json({

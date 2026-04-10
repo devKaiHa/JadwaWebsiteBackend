@@ -6,6 +6,7 @@ const {
   deleteCompany,
   getCompanies,
   getPublicCompanies,
+  getCompanyBySlug,
   getOneCompany,
   resizeCompaniesImages,
   uploadCompaniesImages,
@@ -14,10 +15,9 @@ const {
 
 const companiesRouter = express.Router();
 
-// Public
 companiesRouter.get("/public", getPublicCompanies);
+companiesRouter.get("/public/slug/:slug", getCompanyBySlug);
 
-// Admin / general
 companiesRouter
   .route("/")
   .get(getCompanies)

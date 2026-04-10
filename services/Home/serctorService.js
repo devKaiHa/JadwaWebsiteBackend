@@ -1,46 +1,8 @@
 const asyncHandler = require("express-async-handler");
 const ApiError = require("../../utils/apiError");
 const SectorModel = require("../../models/Home/sectorModel");
-const sharp = require("sharp");
-const { v4: uuidv4 } = require("uuid");
-const { uploadMixOfImages } = require("../../middlewares/uploadingImage");
-
-exports.uploadSectorsImages = uploadMixOfImages([
-  { name: "image", maxCount: 1 },
-]);
-
-exports.resizeSectorsImages = asyncHandler(async (req, res, next) => {
-  if (!req.files) return next();
-
-  if (req.files.image && req.files.image[0]) {
-    const sectorFilename = `sector-${uuidv4()}-${Date.now()}.webp`;
-
-    await sharp(req.files.image[0].buffer)
-      .toFormat("webp")
-      .webp({ quality: 70 })
-      .toFile(`uploads/sectors/${sectorFilename}`);
-
-    req.body.image = sectorFilename;
-  }
-
-  next();
-});
-
-const safeParseJSON = (value, fieldName) => {
-  if (value === undefined || value === null) return value;
-  if (typeof value !== "string") return value;
-
-  try {
-    return JSON.parse(value);
-  } catch (error) {
-    throw new ApiError(`Invalid JSON format for ${fieldName}`, 400);
-  }
-};
-
-const buildSlug = (name = {}) => {
-  const base = name?.en || name?.ar || name?.tr || "";
-  return slugify(base, { lower: true, strict: true, trim: true });
-};
+const safeParseJSON = require("../../utils/safeParseJson");
+const buildSlug = require("../../utils/buildSlug");
 
 // Admin list
 exports.getSectors = asyncHandler(async (req, res) => {

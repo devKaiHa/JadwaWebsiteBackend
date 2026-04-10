@@ -5,6 +5,12 @@ const messagesSchema = new mongoose.Schema(
     name: { type: String, default: "" },
     email: { type: String, default: "" },
     phone: { type: String, default: "" },
+    subject: { type: String, default: "" },
+    requestType: {
+      type: String,
+      enum: ["investment-inquiry", "partnership", "media", "support"],
+      default: "investment-inquiry",
+    },
     message: { type: String, default: "" },
     reply: { type: String, default: "" },
     isReplied: { type: Boolean, default: false },

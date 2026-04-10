@@ -9,6 +9,7 @@ const companiesSchema = new mongoose.Schema(
     about: { type: multilingualSchema },
     experienceYears: { type: String, default: "" },
     experienceField: { type: multilingualSchema },
+    slug: { type: String, default: "" },
     social_links: {
       xTwitter: { type: String, default: "" },
       instagram: { type: String, default: "" },
@@ -19,6 +20,32 @@ const companiesSchema = new mongoose.Schema(
     country: { type: String, default: "" },
     isActive: { type: Boolean, default: true },
     order: { type: Number, default: 0 },
+    services: { type: [multilingualSchema], default: [] },
+    values: { type: [multilingualSchema], default: [] },
+    addresses: { type: [multilingualSchema], default: [] },
+    phone: { type: String, default: "" },
+    email: { type: String, default: "" },
+    website: { type: String, default: "" },
+    goals: { type: [multilingualSchema], default: [] },
+    statistics: {
+      type: [
+        {
+          title: { type: multilingualSchema },
+          value: { type: String, default: "" },
+          description: { type: multilingualSchema },
+        },
+      ],
+      default: [],
+    },
+    fundsAssociated: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "investmentFunds",
+        },
+      ],
+      default: [],
+    },
   },
   { timestamps: true },
 );

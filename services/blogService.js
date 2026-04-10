@@ -7,24 +7,13 @@ const { v4: uuidv4 } = require("uuid");
 const sharp = require("sharp");
 const { default: slugify } = require("slugify");
 const categoryModel = require("../models/categoryModel");
-
-const safeParseJSON = (value, fieldName) => {
-  if (value === undefined || value === null) return value;
-  if (typeof value !== "string") return value;
-
-  try {
-    return JSON.parse(value);
-  } catch (error) {
-    throw new ApiError(`Invalid JSON format for ${fieldName}`, 400);
-  }
-};
+const safeParseJSON = require("../utils/safeParseJson");
 
 const buildSlug = (name = {}) => {
   const base = name?.en || name?.ar || name?.tr || "";
   return slugify(base, { lower: true, strict: true, trim: true });
 };
 
-// Upload fields: one main image + one thumbnail
 exports.uploadBlogImages = uploadMixOfImages([
   { name: "image", maxCount: 1 },
   { name: "thumbnailImage", maxCount: 1 },
@@ -56,7 +45,6 @@ exports.resizeBlogImages = asyncHandler(async (req, res, next) => {
   next();
 });
 
-// Admin/general list
 exports.getBlogs = asyncHandler(async (req, res) => {
   const {
     keyword,
@@ -79,6 +67,7 @@ exports.getBlogs = asyncHandler(async (req, res) => {
       { "title.ar": keywordRegex },
       { "title.en": keywordRegex },
       { "title.tr": keywordRegex },
+      { "author.name": keywordRegex },
     ];
   }
 
@@ -149,7 +138,6 @@ exports.getBlogs = asyncHandler(async (req, res) => {
   });
 });
 
-// Public list: only published
 exports.getPublicBlogs = asyncHandler(async (req, res) => {
   const { keyword, page = 1, limit = 10, category } = req.query;
 
@@ -165,6 +153,7 @@ exports.getPublicBlogs = asyncHandler(async (req, res) => {
       { "title.ar": keywordRegex },
       { "title.en": keywordRegex },
       { "title.tr": keywordRegex },
+      { "author.name": keywordRegex },
     ];
   }
 
@@ -230,7 +219,10 @@ exports.getPublicBlogs = asyncHandler(async (req, res) => {
 exports.createBlog = asyncHandler(async (req, res) => {
   req.body.title = safeParseJSON(req.body.title, "title");
   req.body.content = safeParseJSON(req.body.content, "content");
+  req.body.excerpt = safeParseJSON(req.body.excerpt, "excerpt");
   req.body.tags = safeParseJSON(req.body.tags, "tags");
+  req.body.author = safeParseJSON(req.body.author, "author");
+  req.body.relatedPosts = safeParseJSON(req.body.relatedPosts, "relatedPosts");
 
   req.body.slug = buildSlug(req.body.title);
 
@@ -244,12 +236,10 @@ exports.createBlog = asyncHandler(async (req, res) => {
 });
 
 exports.getOneBlog = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
-
-  const blog = await blogModel.findById(id).populate("category");
+  const blog = await blogModel.findById(req.params.id).populate("category");
 
   if (!blog) {
-    return next(new ApiError(`No Blog found for this id: ${id}`, 404));
+    return next(new ApiError(`No Blog found for this id: ${req.params.id}`, 404));
   }
 
   res.status(200).json({
@@ -259,25 +249,48 @@ exports.getOneBlog = asyncHandler(async (req, res, next) => {
 });
 
 exports.getBlogBySlug = asyncHandler(async (req, res, next) => {
-  const { slug } = req.params;
-
   const blog = await blogModel
-    .findOne({ slug, published: true })
+    .findOne({ slug: req.params.slug, published: true })
     .populate("category");
 
   if (!blog) {
-    return next(new ApiError(`No published Blog found for slug: ${slug}`, 404));
+    return next(
+      new ApiError(`No published Blog found for slug: ${req.params.slug}`, 404),
+    );
+  }
+
+  let relatedBlogs = [];
+
+  if (Array.isArray(blog.relatedPosts) && blog.relatedPosts.length > 0) {
+    relatedBlogs = await blogModel
+      .find({
+        _id: { $in: blog.relatedPosts, $ne: blog._id },
+        published: true,
+      })
+      .select("title slug image thumbnailImage excerpt author createdAt")
+      .limit(4);
+  } else if (blog.category) {
+    relatedBlogs = await blogModel
+      .find({
+        category: blog.category._id,
+        published: true,
+        _id: { $ne: blog._id },
+      })
+      .sort({ createdAt: -1 })
+      .select("title slug image thumbnailImage excerpt author createdAt")
+      .limit(4);
   }
 
   res.status(200).json({
     status: true,
-    data: blog,
+    data: {
+      ...blog.toObject(),
+      relatedBlogs,
+    },
   });
 });
 
 exports.updateBlog = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
-
   if (req.body.title !== undefined) {
     req.body.title = safeParseJSON(req.body.title, "title");
   }
@@ -286,21 +299,33 @@ exports.updateBlog = asyncHandler(async (req, res, next) => {
     req.body.content = safeParseJSON(req.body.content, "content");
   }
 
+  if (req.body.excerpt !== undefined) {
+    req.body.excerpt = safeParseJSON(req.body.excerpt, "excerpt");
+  }
+
   if (req.body.tags !== undefined) {
     req.body.tags = safeParseJSON(req.body.tags, "tags");
+  }
+
+  if (req.body.author !== undefined) {
+    req.body.author = safeParseJSON(req.body.author, "author");
+  }
+
+  if (req.body.relatedPosts !== undefined) {
+    req.body.relatedPosts = safeParseJSON(req.body.relatedPosts, "relatedPosts");
   }
 
   if (req.body.title) {
     req.body.slug = buildSlug(req.body.title);
   }
 
-  const updatedBlog = await blogModel.findByIdAndUpdate(id, req.body, {
+  const updatedBlog = await blogModel.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true,
   });
 
   if (!updatedBlog) {
-    return next(new ApiError(`No Blog found for this id: ${id}`, 404));
+    return next(new ApiError(`No Blog found for this id: ${req.params.id}`, 404));
   }
 
   res.status(200).json({
@@ -311,12 +336,10 @@ exports.updateBlog = asyncHandler(async (req, res, next) => {
 });
 
 exports.deleteBlog = asyncHandler(async (req, res, next) => {
-  const { id } = req.params;
-
-  const blog = await blogModel.findByIdAndDelete(id);
+  const blog = await blogModel.findByIdAndDelete(req.params.id);
 
   if (!blog) {
-    return next(new ApiError(`No Blog found for this id: ${id}`, 404));
+    return next(new ApiError(`No Blog found for this id: ${req.params.id}`, 404));
   }
 
   res.status(200).json({
@@ -326,12 +349,10 @@ exports.deleteBlog = asyncHandler(async (req, res, next) => {
 });
 
 exports.getBlogsByCategory = asyncHandler(async (req, res, next) => {
-  const { slug } = req.params;
-
-  const category = await categoryModel.findOne({ slug });
+  const category = await categoryModel.findOne({ slug: req.params.slug });
 
   if (!category) {
-    return next(new ApiError(`No category found with slug: ${slug}`, 404));
+    return next(new ApiError(`No category found with slug: ${req.params.slug}`, 404));
   }
 
   const blogs = await blogModel

@@ -6,6 +6,7 @@ const {
   deleteInvestmentFund,
   getInvestmentFunds,
   getPublicInvestmentFunds,
+  getInvestmentFundBySlug,
   getOneInvestmentFund,
   resizeInvestmentFundImage,
   updateInvestmentFund,
@@ -14,10 +15,9 @@ const {
 
 const investmentFundsRouter = express.Router();
 
-// Public
 investmentFundsRouter.get("/public", getPublicInvestmentFunds);
+investmentFundsRouter.get("/public/slug/:slug", getInvestmentFundBySlug);
 
-// Admin / general
 investmentFundsRouter
   .route("/")
   .get(getInvestmentFunds)

@@ -8,8 +8,6 @@ const {
   getSectors,
   getPublicSectors,
   updateSector,
-  uploadSectorsImages,
-  resizeSectorsImages,
 } = require("../../services/Home/serctorService");
 
 const sectorRouter = express.Router();
@@ -18,25 +16,12 @@ const sectorRouter = express.Router();
 sectorRouter.get("/public", getPublicSectors);
 
 // Admin / general
-sectorRouter
-  .route("/")
-  .get(getSectors)
-  .post(
-    authService.protect,
-    uploadSectorsImages,
-    resizeSectorsImages,
-    createSector,
-  );
+sectorRouter.route("/").get(getSectors).post(authService.protect, createSector);
 
 sectorRouter
   .route("/:id")
   .get(getOneSector)
-  .put(
-    authService.protect,
-    uploadSectorsImages,
-    resizeSectorsImages,
-    updateSector,
-  )
+  .put(authService.protect, updateSector)
   .delete(authService.protect, deleteSector);
 
 module.exports = sectorRouter;

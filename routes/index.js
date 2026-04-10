@@ -18,6 +18,12 @@ const plansRouter = require("./Service/plansRoute");
 const MessagesRoute = require("./MessagesRoute");
 const usersRouter = require("./userRoute");
 const ourServicesRouter = require("./Service/ourServiceRoute");
+const customPageRouter = require("./customPagesRoute");
+const projectsRouter = require("./projectsRoute");
+const statisticsRoute = require("./statisticsRoute");
+const researchRouter = require("./researchRoute");
+const testimonialRouter = require("./testimonialRoute");
+const policyRouter = require("./policyRoute");
 
 const router = express.Router();
 
@@ -39,5 +45,11 @@ router.use("/messages", MessagesRoute);
 router.use("/users", usersRouter);
 router.use("/contact-us", contactUsRouter);
 router.use("/companies", companiesRouter);
+router.use("/custom-pages", customPageRouter);
+router.use("/projects", projectsRouter);
+router.use("/statistics", statisticsRoute);
+router.use("/research", researchRouter);
+router.use("/testimonials", testimonialRouter);
+router.use("/policies", policyRouter);
 
 module.exports = router;
