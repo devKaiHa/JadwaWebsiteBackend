@@ -24,6 +24,7 @@ const statisticsRoute = require("./statisticsRoute");
 const researchRouter = require("./researchRoute");
 const testimonialRouter = require("./testimonialRoute");
 const policyRouter = require("./policyRoute");
+const pageBannerRouter = require("./pageBannerRoute");
 
 const router = express.Router();
 
@@ -51,5 +52,6 @@ router.use("/statistics", statisticsRoute);
 router.use("/research", researchRouter);
 router.use("/testimonials", testimonialRouter);
 router.use("/policies", policyRouter);
+router.use("/page-banners", pageBannerRouter);
 
 module.exports = router;
